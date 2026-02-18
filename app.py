@@ -18,27 +18,30 @@ st.title("UPI Fraud Risk ANN Hyperparameter Tuning Dashboard")
 # ---- Upload Data ----
 uploaded_file = st.file_uploader("Upload UPI Data CSV", type=["csv"])
 
+uploaded_file = st.file_uploader("Upload UPI Data CSV", type=["csv"])
+
 if uploaded_file:
 
-df = pd.read_csv(uploaded_file)
+    df = pd.read_csv(uploaded_file)
 
-# Clean column names (remove spaces and special characters)
-df.columns = df.columns.str.strip()
+    # Clean column names
+    df.columns = df.columns.str.strip()
 
-# Auto-detect correct column names
-volume_col = [col for col in df.columns if "Volume" in col][0]
-value_col = [col for col in df.columns if "Value" in col][0]
+    # Auto-detect correct column names
+    volume_col = [col for col in df.columns if "Volume" in col][0]
+    value_col = [col for col in df.columns if "Value" in col][0]
 
-# Rename for consistency
-df = df.rename(columns={
-    volume_col: "Volume_Million",
-    value_col: "Value_Crore"
-})
+    # Rename for consistency
+    df = df.rename(columns={
+        volume_col: "Volume_Million",
+        value_col: "Value_Crore"
+    })
 
-# Feature Engineering
-df['Volume_Growth'] = df['Volume_Million'].pct_change()
-df['Value_Growth'] = df['Value_Crore'].pct_change()
-df = df.dropna()
+    # Feature Engineering
+    df['Volume_Growth'] = df['Volume_Million'].pct_change()
+    df['Value_Growth'] = df['Value_Crore'].pct_change()
+    df = df.dropna()
+
 
     df = df.dropna()
 
