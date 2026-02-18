@@ -16,20 +16,31 @@ from tensorflow.keras.optimizers import Adam
 st.title("UPI Fraud Risk ANN Hyperparameter Tuning Dashboard")
 
 # ---- Upload Data ----
-uploaded_file = st.file_uploader("Upload UPI Data CSV", type=["csv", "xlsx"]
+uploaded_file = st.file_uploader(
+    "Upload UPI Data File",
+    type=["csv", "xlsx"],
+    key="upi_file"
 )
 
-if uploaded_file:
+if uploaded_file is not None:
 
     file_name = uploaded_file.name
 
-if file_name.endswith(".csv"):
-    df = pd.read_csv(uploaded_file)
-elif file_name.endswith(".xlsx"):
-    df = pd.read_excel(uploaded_file)
-else:
-    st.error("Unsupported file format")
-    st.stop()
+    try:
+        if file_name.endswith(".csv"):
+            df = pd.read_csv(uploaded_file)
+
+        elif file_name.endswith(".xlsx"):
+            df = pd.read_excel(uploaded_file)
+
+        else:
+            st.error("Unsupported file format")
+            st.stop()
+
+    except Exception as e:
+        st.error(f"Error reading file: {e}")
+        st.stop()
+
 
 
     # cleaning + feature engineering here
