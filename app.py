@@ -16,51 +16,59 @@ from tensorflow.keras.optimizers import Adam
 st.title("UPI Fraud Risk ANN Hyperparameter Tuning Dashboard")
 
 # ---- Upload Data ----
-uploaded_file = st.file_uploader(
-    "Upload UPI Data File",
+uploaded_files = st.file_uploader(
+    "Upload UPI Data Files (Multiple Allowed)",
     type=["csv", "xlsx"],
+    accept_multiple_files=True,
     key="upi_file"
 )
 
-if uploaded_file is not None:
+if uploaded_files:
 
-    file_name = uploaded_file.name
+    all_dfs = []
 
-    if file_name.endswith(".csv"):
-        df = pd.read_csv(uploaded_file)
-    elif file_name.endswith(".xlsx"):
-        df = pd.read_excel(uploaded_file)
-    else:
-        st.error("Unsupported file format")
-        st.stop()
+    for uploaded_file in uploaded_files:
 
-    # Clean column names
-    df.columns = df.columns.str.strip()
+        file_name = uploaded_file.name
 
-    # Auto-detect columns
-    volume_col = [col for col in df.columns if "Volume" in col][0]
-    value_col = [col for col in df.columns if "Value" in col][0]
+        if file_name.endswith(".csv"):
+            df = pd.read_csv(uploaded_file)
+        elif file_name.endswith(".xlsx"):
+            df = pd.read_excel(uploaded_file)
+        else:
+            st.warning(f"Skipping unsupported file: {file_name}")
+            continue
 
-    df = df.rename(columns={
-        volume_col: "Volume_Million",
-        value_col: "Value_Crore"
-    })
+        df.columns = df.columns.str.strip()
 
-    # Remove commas and convert to numeric
-    df["Volume_Million"] = (
-        df["Volume_Million"]
-        .astype(str)
-        .str.replace(",", "", regex=False)
-    )
+        volume_col = [col for col in df.columns if "Volume" in col][0]
+        value_col = [col for col in df.columns if "Value" in col][0]
 
-    df["Value_Crore"] = (
-        df["Value_Crore"]
-        .astype(str)
-        .str.replace(",", "", regex=False)
-    )
+        df = df.rename(columns={
+            volume_col: "Volume_Million",
+            value_col: "Value_Crore"
+        })
 
-    df["Volume_Million"] = pd.to_numeric(df["Volume_Million"], errors="coerce")
-    df["Value_Crore"] = pd.to_numeric(df["Value_Crore"], errors="coerce")
+        # Clean numeric values
+        df["Volume_Million"] = (
+            df["Volume_Million"]
+            .astype(str)
+            .str.replace(",", "", regex=False)
+        )
+
+        df["Value_Crore"] = (
+            df["Value_Crore"]
+            .astype(str)
+            .str.replace(",", "", regex=False)
+        )
+
+        df["Volume_Million"] = pd.to_numeric(df["Volume_Million"], errors="coerce")
+        df["Value_Crore"] = pd.to_numeric(df["Value_Crore"], errors="coerce")
+
+        all_dfs.append(df)
+
+    # Combine all years
+    df = pd.concat(all_dfs, ignore_index=True)
 
     df = df.dropna()
 
@@ -69,6 +77,9 @@ if uploaded_file is not None:
     df["Value_Growth"] = df["Value_Crore"].pct_change()
 
     df = df.dropna()
+
+    st.success("All files uploaded and merged successfully!")
+
 
 
     threshold = df['Volume_Growth'].quantile(0.75)
