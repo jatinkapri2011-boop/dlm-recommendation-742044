@@ -26,75 +26,50 @@ if uploaded_file is not None:
 
     file_name = uploaded_file.name
 
-    try:
-        if file_name.endswith(".csv"):
-            df = pd.read_csv(uploaded_file)
-
-        elif file_name.endswith(".xlsx"):
-            df = pd.read_excel(uploaded_file)
-
-        else:
-            st.error("Unsupported file format")
-            st.stop()
-
-    except Exception as e:
-        st.error(f"Error reading file: {e}")
+    if file_name.endswith(".csv"):
+        df = pd.read_csv(uploaded_file)
+    elif file_name.endswith(".xlsx"):
+        df = pd.read_excel(uploaded_file)
+    else:
+        st.error("Unsupported file format")
         st.stop()
-
-
-
-    # cleaning + feature engineering here
-
-
-
-
-if uploaded_file:
-
-   
 
     # Clean column names
     df.columns = df.columns.str.strip()
 
-    # Auto-detect correct column names
+    # Auto-detect columns
     volume_col = [col for col in df.columns if "Volume" in col][0]
     value_col = [col for col in df.columns if "Value" in col][0]
 
-    # Rename for consistency
     df = df.rename(columns={
         volume_col: "Volume_Million",
         value_col: "Value_Crore"
     })
 
-    # Feature Engineering
-   # Remove commas and convert to numeric
-df["Volume_Million"] = (
-    df["Volume_Million"]
-    .astype(str)
-    .str.replace(",", "")
-)
+    # Remove commas and convert to numeric
+    df["Volume_Million"] = (
+        df["Volume_Million"]
+        .astype(str)
+        .str.replace(",", "", regex=False)
+    )
 
-df["Value_Crore"] = (
-    df["Value_Crore"]
-    .astype(str)
-    .str.replace(",", "")
-)
+    df["Value_Crore"] = (
+        df["Value_Crore"]
+        .astype(str)
+        .str.replace(",", "", regex=False)
+    )
 
-df["Volume_Million"] = pd.to_numeric(df["Volume_Million"], errors="coerce")
-df["Value_Crore"] = pd.to_numeric(df["Value_Crore"], errors="coerce")
-
-# Drop missing values
-df = df.dropna()
-
-# Calculate growth
-df['Volume_Growth'] = df['Volume_Million'].pct_change()
-df['Value_Growth'] = df['Value_Crore'].pct_change()
-
-df = df.dropna()
+    df["Volume_Million"] = pd.to_numeric(df["Volume_Million"], errors="coerce")
+    df["Value_Crore"] = pd.to_numeric(df["Value_Crore"], errors="coerce")
 
     df = df.dropna()
 
+    # Calculate growth
+    df["Volume_Growth"] = df["Volume_Million"].pct_change()
+    df["Value_Growth"] = df["Value_Crore"].pct_change()
 
     df = df.dropna()
+
 
     threshold = df['Volume_Growth'].quantile(0.75)
     df['Fraud_Risk'] = (df['Volume_Growth'] > threshold).astype(int)
