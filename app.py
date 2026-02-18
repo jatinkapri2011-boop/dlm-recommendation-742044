@@ -18,7 +18,14 @@ st.title("UPI Fraud Risk ANN Hyperparameter Tuning Dashboard")
 # ---- Upload Data ----
 uploaded_file = st.file_uploader("Upload UPI Data CSV", type=["csv"])
 
-uploaded_file = st.file_uploader("Upload UPI Data CSV", type=["csv"])
+if uploaded_file:
+
+    df = pd.read_csv(uploaded_file)
+
+    # cleaning + feature engineering here
+
+
+
 
 if uploaded_file:
 
