@@ -50,7 +50,7 @@ if uploaded_file is not None:
 
 if uploaded_file:
 
-    df = pd.read_csv(uploaded_file)
+   
 
     # Clean column names
     df.columns = df.columns.str.strip()
