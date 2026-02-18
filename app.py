@@ -66,8 +66,31 @@ if uploaded_file:
     })
 
     # Feature Engineering
-    df['Volume_Growth'] = df['Volume_Million'].pct_change()
-    df['Value_Growth'] = df['Value_Crore'].pct_change()
+   # Remove commas and convert to numeric
+df["Volume_Million"] = (
+    df["Volume_Million"]
+    .astype(str)
+    .str.replace(",", "")
+)
+
+df["Value_Crore"] = (
+    df["Value_Crore"]
+    .astype(str)
+    .str.replace(",", "")
+)
+
+df["Volume_Million"] = pd.to_numeric(df["Volume_Million"], errors="coerce")
+df["Value_Crore"] = pd.to_numeric(df["Value_Crore"], errors="coerce")
+
+# Drop missing values
+df = df.dropna()
+
+# Calculate growth
+df['Volume_Growth'] = df['Volume_Million'].pct_change()
+df['Value_Growth'] = df['Value_Crore'].pct_change()
+
+df = df.dropna()
+
     df = df.dropna()
 
 
