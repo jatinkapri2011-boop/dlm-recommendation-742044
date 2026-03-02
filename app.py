@@ -47,7 +47,6 @@ def load_data():
         df = pd.read_csv(file)
         df.columns = df.columns.str.strip()
 
-        # Detect columns dynamically
         volume_col = [c for c in df.columns if "Volume" in c][0]
         value_col = [c for c in df.columns if "Value" in c][0]
         month_col = [c for c in df.columns if "Month" in c][0]
@@ -58,7 +57,6 @@ def load_data():
             month_col: "Month"
         })
 
-        # Clean numeric fields
         df["Volume_Million"] = (
             df["Volume_Million"]
             .astype(str)
@@ -74,23 +72,18 @@ def load_data():
         df["Volume_Million"] = pd.to_numeric(df["Volume_Million"], errors="coerce")
         df["Value_Crore"] = pd.to_numeric(df["Value_Crore"], errors="coerce")
 
-        # Convert Month to Date
         df["Date"] = pd.to_datetime(df["Month"], format="%B-%Y", errors="coerce")
 
         all_dfs.append(df)
 
     df = pd.concat(all_dfs, ignore_index=True)
     df = df.dropna()
-
-    # Sort chronologically
     df = df.sort_values("Date")
 
-    # Feature Engineering
     df["Volume_Growth"] = df["Volume_Million"].pct_change()
     df["Value_Growth"] = df["Value_Crore"].pct_change()
     df = df.dropna()
 
-    # Fraud label (Top 25% growth)
     threshold = df["Volume_Growth"].quantile(0.75)
     df["Fraud_Risk"] = (df["Volume_Growth"] > threshold).astype(int)
 
@@ -101,21 +94,7 @@ def load_data():
 
 df = load_data()
 
-# -------------------------------------------------
-# SHOW DATE RANGE
-# -------------------------------------------------
 st.success(f"Dataset Covers: {df['Date'].min().date()} to {df['Date'].max().date()}")
-
-# -------------------------------------------------
-# YEAR FILTER
-# -------------------------------------------------
-selected_years = st.multiselect(
-    "Select Years to Display:",
-    options=sorted(df["Year"].unique()),
-    default=sorted(df["Year"].unique())
-)
-
-df_filtered = df[df["Year"].isin(selected_years)]
 
 # -------------------------------------------------
 # TABS
@@ -127,23 +106,63 @@ tab1, tab2, tab3 = st.tabs(["📊 Data Overview", "🤖 Model Training", "📈 E
 # =================================================
 with tab1:
 
-    col1, col2 = st.columns(2)
+    st.subheader("📅 Date Range Filter")
 
-    with col1:
-        st.subheader("UPI Volume Trend (Chronological)")
-        fig, ax = plt.subplots()
-        ax.plot(df_filtered["Date"], df_filtered["Volume_Million"])
-        ax.set_xlabel("Date")
-        ax.set_ylabel("Volume (Million)")
-        ax.tick_params(axis='x', rotation=45)
-        st.pyplot(fig)
+    min_date = df["Date"].min()
+    max_date = df["Date"].max()
 
-    with col2:
-        st.subheader("Class Distribution")
-        st.bar_chart(df_filtered["Fraud_Risk"].value_counts())
+    date_range = st.slider(
+        "Select Date Range:",
+        min_value=min_date,
+        max_value=max_date,
+        value=(min_date, max_date)
+    )
 
-    st.subheader("Dataset Preview")
-    st.dataframe(df_filtered.head())
+    df_filtered = df[
+        (df["Date"] >= date_range[0]) &
+        (df["Date"] <= date_range[1])
+    ]
+
+    # YEAR SUMMARY
+    st.subheader("📊 Year-wise Summary")
+
+    yearly_summary = (
+        df_filtered
+        .groupby("Year")
+        .agg({
+            "Volume_Million": "sum",
+            "Value_Crore": "sum",
+            "Fraud_Risk": "sum"
+        })
+        .reset_index()
+    )
+
+    yearly_summary = yearly_summary.rename(columns={
+        "Volume_Million": "Total Volume (Million)",
+        "Value_Crore": "Total Value (Crore)",
+        "Fraud_Risk": "High-Risk Months"
+    })
+
+    st.dataframe(yearly_summary)
+
+    # TIME SERIES
+    st.subheader("📈 UPI Volume Trend")
+
+    fig, ax = plt.subplots()
+    ax.plot(df_filtered["Date"], df_filtered["Volume_Million"])
+    ax.set_xlabel("Date")
+    ax.set_ylabel("Volume (Million)")
+    ax.tick_params(axis='x', rotation=45)
+    st.pyplot(fig)
+
+    # CLASS DISTRIBUTION
+    st.subheader("⚠ Fraud Risk Distribution")
+    st.bar_chart(df_filtered["Fraud_Risk"].value_counts())
+
+    # FULL DATA
+    st.subheader("📂 Full Dataset")
+    st.dataframe(df_filtered)
+
 
 # =================================================
 # TAB 2 – MODEL TRAINING
@@ -208,13 +227,13 @@ with tab2:
         ax2.legend()
         st.pyplot(fig2)
 
-        # Predictions
         y_pred_prob = model.predict(X_test)
         y_pred = (y_pred_prob > 0.5).astype(int)
 
         st.session_state["y_test"] = y_test
         st.session_state["y_pred"] = y_pred
         st.session_state["y_prob"] = y_pred_prob
+
 
 # =================================================
 # TAB 3 – EVALUATION
