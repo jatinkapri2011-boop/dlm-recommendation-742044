@@ -4,6 +4,7 @@ import numpy as np
 import os
 import matplotlib.pyplot as plt
 import seaborn as sns
+import datetime
 
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
@@ -14,10 +15,10 @@ from sklearn.metrics import (
     roc_curve
 )
 
-import tensorflow as tf
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, Dropout, Input
 from tensorflow.keras.optimizers import Adam
+
 
 # -------------------------------------------------
 # PAGE CONFIG
@@ -30,13 +31,15 @@ st.set_page_config(
 st.title("🚨 UPI Fraud Risk Prediction Dashboard (2018–2024)")
 st.markdown("### Deep Learning for Managers Project")
 
+
 # -------------------------------------------------
-# LOAD DATA AUTOMATICALLY FROM REPO
+# LOAD DATA
 # -------------------------------------------------
 @st.cache_data
 def load_data():
 
     csv_files = [f for f in os.listdir() if f.endswith(".csv")]
+
     if not csv_files:
         st.error("No CSV files found in repository.")
         st.stop()
@@ -80,6 +83,7 @@ def load_data():
     df = df.dropna()
     df = df.sort_values("Date")
 
+    # Feature Engineering
     df["Volume_Growth"] = df["Volume_Million"].pct_change()
     df["Value_Growth"] = df["Value_Crore"].pct_change()
     df = df.dropna()
@@ -96,10 +100,12 @@ df = load_data()
 
 st.success(f"Dataset Covers: {df['Date'].min().date()} to {df['Date'].max().date()}")
 
+
 # -------------------------------------------------
 # TABS
 # -------------------------------------------------
 tab1, tab2, tab3 = st.tabs(["📊 Data Overview", "🤖 Model Training", "📈 Evaluation"])
+
 
 # =================================================
 # TAB 1 – DATA OVERVIEW
@@ -108,22 +114,23 @@ with tab1:
 
     st.subheader("📅 Date Range Filter")
 
-    min_date = df["Date"].min()
-    max_date = df["Date"].max()
+    min_date = df["Date"].min().date()
+    max_date = df["Date"].max().date()
 
     date_range = st.slider(
         "Select Date Range:",
         min_value=min_date,
         max_value=max_date,
-        value=(min_date, max_date)
+        value=(min_date, max_date),
+        format="YYYY-MM"
     )
 
     df_filtered = df[
-        (df["Date"] >= date_range[0]) &
-        (df["Date"] <= date_range[1])
+        (df["Date"].dt.date >= date_range[0]) &
+        (df["Date"].dt.date <= date_range[1])
     ]
 
-    # YEAR SUMMARY
+    # Yearly Summary
     st.subheader("📊 Year-wise Summary")
 
     yearly_summary = (
@@ -145,7 +152,7 @@ with tab1:
 
     st.dataframe(yearly_summary)
 
-    # TIME SERIES
+    # Time Series Plot
     st.subheader("📈 UPI Volume Trend")
 
     fig, ax = plt.subplots()
@@ -155,11 +162,11 @@ with tab1:
     ax.tick_params(axis='x', rotation=45)
     st.pyplot(fig)
 
-    # CLASS DISTRIBUTION
+    # Class Distribution
     st.subheader("⚠ Fraud Risk Distribution")
     st.bar_chart(df_filtered["Fraud_Risk"].value_counts())
 
-    # FULL DATA
+    # Full Dataset
     st.subheader("📂 Full Dataset")
     st.dataframe(df_filtered)
 
@@ -179,6 +186,10 @@ with tab2:
 
     X = df_filtered[["Volume_Growth", "Value_Growth"]]
     y = df_filtered["Fraud_Risk"]
+
+    if len(df_filtered) < 10:
+        st.warning("Not enough data in selected date range for training.")
+        st.stop()
 
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=0.2, random_state=42
