@@ -19,38 +19,46 @@ from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, Dropout, Input
 from tensorflow.keras.optimizers import Adam
 
-# -----------------------------------
+# -------------------------------------------------
 # PAGE CONFIG
-# -----------------------------------
+# -------------------------------------------------
 st.set_page_config(
-    page_title="UPI Fraud Risk ANN",
-    layout="wide",
-    initial_sidebar_state="expanded"
+    page_title="UPI Fraud Risk ANN Dashboard",
+    layout="wide"
 )
 
-st.title("🚨 UPI Fraud Risk Prediction Dashboard")
-st.markdown("### Deep Learning Model with Hyperparameter Tuning")
+st.title("🚨 UPI Fraud Risk Prediction Dashboard (2018–2024)")
+st.markdown("### Deep Learning for Managers Project")
 
-# -----------------------------------
-# LOAD DATA (AUTO FROM REPO)
-# -----------------------------------
+# -------------------------------------------------
+# LOAD DATA AUTOMATICALLY FROM REPO
+# -------------------------------------------------
 @st.cache_data
 def load_data():
+
     csv_files = [f for f in os.listdir() if f.endswith(".csv")]
+    if not csv_files:
+        st.error("No CSV files found in repository.")
+        st.stop()
+
     all_dfs = []
 
     for file in csv_files:
         df = pd.read_csv(file)
         df.columns = df.columns.str.strip()
 
+        # Detect columns dynamically
         volume_col = [c for c in df.columns if "Volume" in c][0]
         value_col = [c for c in df.columns if "Value" in c][0]
+        month_col = [c for c in df.columns if "Month" in c][0]
 
         df = df.rename(columns={
             volume_col: "Volume_Million",
-            value_col: "Value_Crore"
+            value_col: "Value_Crore",
+            month_col: "Month"
         })
 
+        # Clean numeric fields
         df["Volume_Million"] = (
             df["Volume_Million"]
             .astype(str)
@@ -66,52 +74,80 @@ def load_data():
         df["Volume_Million"] = pd.to_numeric(df["Volume_Million"], errors="coerce")
         df["Value_Crore"] = pd.to_numeric(df["Value_Crore"], errors="coerce")
 
+        # Convert Month to Date
+        df["Date"] = pd.to_datetime(df["Month"], format="%B-%Y", errors="coerce")
+
         all_dfs.append(df)
 
     df = pd.concat(all_dfs, ignore_index=True)
     df = df.dropna()
 
+    # Sort chronologically
+    df = df.sort_values("Date")
+
+    # Feature Engineering
     df["Volume_Growth"] = df["Volume_Million"].pct_change()
     df["Value_Growth"] = df["Value_Crore"].pct_change()
     df = df.dropna()
 
+    # Fraud label (Top 25% growth)
     threshold = df["Volume_Growth"].quantile(0.75)
     df["Fraud_Risk"] = (df["Volume_Growth"] > threshold).astype(int)
+
+    df["Year"] = df["Date"].dt.year
 
     return df
 
 
 df = load_data()
 
-# -----------------------------------
+# -------------------------------------------------
+# SHOW DATE RANGE
+# -------------------------------------------------
+st.success(f"Dataset Covers: {df['Date'].min().date()} to {df['Date'].max().date()}")
+
+# -------------------------------------------------
+# YEAR FILTER
+# -------------------------------------------------
+selected_years = st.multiselect(
+    "Select Years to Display:",
+    options=sorted(df["Year"].unique()),
+    default=sorted(df["Year"].unique())
+)
+
+df_filtered = df[df["Year"].isin(selected_years)]
+
+# -------------------------------------------------
 # TABS
-# -----------------------------------
+# -------------------------------------------------
 tab1, tab2, tab3 = st.tabs(["📊 Data Overview", "🤖 Model Training", "📈 Evaluation"])
 
-# ===================================
-# TAB 1 — DATA OVERVIEW
-# ===================================
+# =================================================
+# TAB 1 – DATA OVERVIEW
+# =================================================
 with tab1:
 
     col1, col2 = st.columns(2)
 
     with col1:
-        st.subheader("Transaction Volume Over Time")
+        st.subheader("UPI Volume Trend (Chronological)")
         fig, ax = plt.subplots()
-        ax.plot(df["Volume_Million"])
-        ax.set_title("Volume Trend")
+        ax.plot(df_filtered["Date"], df_filtered["Volume_Million"])
+        ax.set_xlabel("Date")
+        ax.set_ylabel("Volume (Million)")
+        ax.tick_params(axis='x', rotation=45)
         st.pyplot(fig)
 
     with col2:
         st.subheader("Class Distribution")
-        st.bar_chart(df["Fraud_Risk"].value_counts())
+        st.bar_chart(df_filtered["Fraud_Risk"].value_counts())
 
     st.subheader("Dataset Preview")
-    st.dataframe(df.head())
+    st.dataframe(df_filtered.head())
 
-# ===================================
-# TAB 2 — MODEL TRAINING
-# ===================================
+# =================================================
+# TAB 2 – MODEL TRAINING
+# =================================================
 with tab2:
 
     st.sidebar.header("⚙ Hyperparameters")
@@ -120,10 +156,10 @@ with tab2:
     dropout_rate = st.sidebar.slider("Dropout Rate", 0.0, 0.5, 0.2)
     learning_rate = st.sidebar.slider("Learning Rate", 0.0001, 0.01, 0.001)
     epochs = st.sidebar.slider("Epochs", 10, 200, 50)
-    use_class_weight = st.sidebar.checkbox("Use Class Weights (Handle Imbalance)", value=True)
+    use_class_weight = st.sidebar.checkbox("Handle Class Imbalance", value=True)
 
-    X = df[["Volume_Growth", "Value_Growth"]]
-    y = df["Fraud_Risk"]
+    X = df_filtered[["Volume_Growth", "Value_Growth"]]
+    y = df_filtered["Fraud_Risk"]
 
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=0.2, random_state=42
@@ -150,9 +186,9 @@ with tab2:
 
         class_weight = None
         if use_class_weight:
-            weight_for_0 = len(y) / (2 * sum(y == 0))
-            weight_for_1 = len(y) / (2 * sum(y == 1))
-            class_weight = {0: weight_for_0, 1: weight_for_1}
+            weight_0 = len(y) / (2 * sum(y == 0))
+            weight_1 = len(y) / (2 * sum(y == 1))
+            class_weight = {0: weight_0, 1: weight_1}
 
         history = model.fit(
             X_train,
@@ -163,9 +199,9 @@ with tab2:
             class_weight=class_weight
         )
 
-        st.success("Model Training Complete!")
+        st.success("Model Training Complete")
 
-        # Plot training history
+        # Loss Curve
         fig2, ax2 = plt.subplots()
         ax2.plot(history.history["loss"], label="Train Loss")
         ax2.plot(history.history["val_loss"], label="Validation Loss")
@@ -178,21 +214,22 @@ with tab2:
 
         st.session_state["y_test"] = y_test
         st.session_state["y_pred"] = y_pred
-        st.session_state["y_pred_prob"] = y_pred_prob
+        st.session_state["y_prob"] = y_pred_prob
 
-# ===================================
-# TAB 3 — EVALUATION
-# ===================================
+# =================================================
+# TAB 3 – EVALUATION
+# =================================================
 with tab3:
 
     if "y_pred" in st.session_state:
 
         y_test = st.session_state["y_test"]
         y_pred = st.session_state["y_pred"]
-        y_pred_prob = st.session_state["y_pred_prob"]
+        y_prob = st.session_state["y_prob"]
 
         st.subheader("Confusion Matrix")
         cm = confusion_matrix(y_test, y_pred)
+
         fig3, ax3 = plt.subplots()
         sns.heatmap(cm, annot=True, fmt="d", cmap="Blues", ax=ax3)
         st.pyplot(fig3)
@@ -203,12 +240,11 @@ with tab3:
         roc = roc_auc_score(y_test, y_pred)
         st.write(f"ROC-AUC Score: {roc:.4f}")
 
-        # ROC Curve
-        fpr, tpr, _ = roc_curve(y_test, y_pred_prob)
+        fpr, tpr, _ = roc_curve(y_test, y_prob)
         fig4, ax4 = plt.subplots()
-        ax4.plot(fpr, tpr, label="ROC Curve")
+        ax4.plot(fpr, tpr)
         ax4.plot([0,1],[0,1],'--')
-        ax4.legend()
+        ax4.set_title("ROC Curve")
         st.pyplot(fig4)
 
     else:
